@@ -878,6 +878,9 @@ endDateInput.valueAsDate = today;
                                 .pagebreak {
                                     page-break-before: always;
                                 }
+                                 @page {
+        size: landscape;
+    }
                             }
                         </style>
                     </head>
@@ -892,7 +895,7 @@ endDateInput.valueAsDate = today;
                         <div class="chart-container">
                             <img src="${chartImage}" class="chart-image" alt="Grafico Pressione Sanguigna">
                         </div>
-                        
+                        <div class="pagebreak"></div>
                         <h2>Tabella Misurazioni</h2>
                         <table>
                             <thead>

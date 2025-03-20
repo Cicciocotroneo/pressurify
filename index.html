@@ -365,9 +365,10 @@
                             borderColor: 'rgba(255, 99, 132, 1)',
                             backgroundColor: 'rgba(255, 99, 132, 0.2)',
                             borderWidth: 2,
-                            tension: 0.3,
-                            pointRadius: 3,
-                            pointHoverRadius: 6
+                            tension: 0.1,
+                            pointRadius: 4,
+                            pointHoverRadius: 7,
+                            pointBackgroundColor: 'rgba(255, 99, 132, 1)'
                         },
                         {
                             label: 'Diastolica (mmHg)',
@@ -378,9 +379,10 @@
                             borderColor: 'rgba(54, 162, 235, 1)',
                             backgroundColor: 'rgba(54, 162, 235, 0.2)',
                             borderWidth: 2,
-                            tension: 0.3,
-                            pointRadius: 3,
-                            pointHoverRadius: 6
+                            tension: 0.1,
+                            pointRadius: 4,
+                            pointHoverRadius: 7,
+                            pointBackgroundColor: 'rgba(54, 162, 235, 1)'
                         }
                     ];
                     
@@ -421,16 +423,36 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             parsing: false,
+                            animation: {
+                                duration: 500
+                            },
+                            interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                            },
                             scales: {
                                 x: {
                                     type: 'time',
                                     time: {
-                                        unit: 'day',
-                                        tooltipFormat: 'DD MMM YYYY, HH:mm',
                                         displayFormats: {
+                                            millisecond: 'HH:mm:ss.SSS',
+                                            second: 'HH:mm:ss',
+                                            minute: 'HH:mm',
+                                            hour: 'DD/MM HH:mm',
                                             day: 'DD/MM',
-                                            hour: 'HH:mm'
-                                        }
+                                            week: 'DD/MM',
+                                            month: 'MM/YYYY',
+                                            quarter: 'MM/YYYY',
+                                            year: 'YYYY'
+                                        },
+                                        tooltipFormat: 'DD MMM YYYY, HH:mm'
+                                    },
+                                    distribution: 'linear',
+                                    ticks: {
+                                        source: 'auto',
+                                        maxRotation: 45,
+                                        autoSkip: true
                                     },
                                     title: {
                                         display: true,

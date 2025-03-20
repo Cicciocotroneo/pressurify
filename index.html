@@ -343,6 +343,10 @@
                     const startDate = new Date(startDateInput.value + 'T00:00:00');
                     const endDate = new Date(endDateInput.value + 'T23:59:59');
                     
+                    // Calcola la differenza in giorni
+                    const diffTime = Math.abs(endDate - startDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
                     // Filtra i record nel range di date
                     const filteredRecords = records.filter(record => {
                         const recordDate = new Date(record.timestamp);
@@ -353,15 +357,38 @@
                     const sortedRecords = [...filteredRecords].sort((a, b) => a.timestamp - b.timestamp);
                     
                     console.log("Record filtrati per il grafico:", sortedRecords.length);
+                    console.log("Intervallo di giorni:", diffDays);
+                    
+                    let chartData;
+                    let chartTitle;
+                    
+                    // Decidi quale tipo di aggregazione usare in base all'intervallo
+                    if (diffDays > 7) {
+                        // Per periodi più lunghi di una settimana, mostra medie giornaliere
+                        chartData = aggregateByDay(sortedRecords);
+                        chartTitle = 'Andamento Pressione Sanguigna (Media Giornaliera)';
+                    } else if (diffDays > 1) {
+                        // Per periodi tra 1 e 7 giorni, mostra medie per fasce di 3 ore
+                        chartData = aggregateBy3Hours(sortedRecords);
+                        chartTitle = 'Andamento Pressione Sanguigna (Media per Fasce di 3 ore)';
+                    } else {
+                        // Per periodi di un giorno o meno, mostra misurazioni singole
+                        chartData = {
+                            timestamps: sortedRecords.map(r => parseInt(r.timestamp)),
+                            systolic: sortedRecords.map(r => ({ x: parseInt(r.timestamp), y: r.systolic })),
+                            diastolic: sortedRecords.map(r => ({ x: parseInt(r.timestamp), y: r.diastolic })),
+                            pulse: sortedRecords
+                                .filter(r => r.pulse !== null && r.pulse !== undefined)
+                                .map(r => ({ x: parseInt(r.timestamp), y: r.pulse }))
+                        };
+                        chartTitle = 'Andamento Pressione Sanguigna (Misurazioni Individuali)';
+                    }
                     
                     // Crea i dataset per il grafico
                     const datasets = [
                         {
                             label: 'Sistolica (mmHg)',
-                            data: sortedRecords.map(record => ({
-                                x: parseInt(record.timestamp),
-                                y: record.systolic
-                            })),
+                            data: chartData.systolic,
                             borderColor: 'rgba(255, 99, 132, 1)',
                             backgroundColor: 'rgba(255, 99, 132, 0.2)',
                             borderWidth: 2,
@@ -372,10 +399,7 @@
                         },
                         {
                             label: 'Diastolica (mmHg)',
-                            data: sortedRecords.map(record => ({
-                                x: parseInt(record.timestamp),
-                                y: record.diastolic
-                            })),
+                            data: chartData.diastolic,
                             borderColor: 'rgba(54, 162, 235, 1)',
                             backgroundColor: 'rgba(54, 162, 235, 0.2)',
                             borderWidth: 2,
@@ -387,17 +411,10 @@
                     ];
                     
                     // Aggiungi il dataset per le pulsazioni solo se ci sono dati
-                    const pulseData = sortedRecords
-                        .filter(record => record.pulse !== null && record.pulse !== undefined)
-                        .map(record => ({
-                            x: parseInt(record.timestamp),
-                            y: record.pulse
-                        }));
-                    
-                    if (pulseData.length > 0) {
+                    if (chartData.pulse && chartData.pulse.length > 0) {
                         datasets.push({
                             label: 'Pulsazioni (bpm)',
-                            data: pulseData,
+                            data: chartData.pulse,
                             borderColor: 'rgba(75, 192, 192, 1)',
                             backgroundColor: 'rgba(75, 192, 192, 0.2)',
                             borderWidth: 2,
@@ -485,7 +502,7 @@
                             plugins: {
                                 title: {
                                     display: true,
-                                    text: 'Andamento Pressione Sanguigna e Battito',
+                                    text: chartTitle,
                                     font: {
                                         size: 16
                                     }
@@ -516,8 +533,136 @@
                 }
             }
             
-            // Questa funzione non è più necessaria con il nuovo approccio del grafico
-            // che mostra i punti esatti invece delle medie orarie
+            // Funzione per aggregare i dati per fasce di 3 ore
+            function aggregateBy3Hours(records) {
+                // Crea bucket per le fasce di 3 ore: 0-3, 3-6, 6-9, 9-12, 12-15, 15-18, 18-21, 21-24
+                const buckets = {};
+                
+                // Inizializza i buckets
+                for (let i = 0; i < 8; i++) {
+                    buckets[i] = [];
+                }
+                
+                // Popola i buckets con i record
+                records.forEach(record => {
+                    const date = new Date(parseInt(record.timestamp));
+                    const hours = date.getHours();
+                    const bucketIndex = Math.floor(hours / 3);
+                    
+                    // Crea una chiave univoca per ogni giorno e fascia oraria
+                    const day = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                    const key = `${day}_${bucketIndex}`;
+                    
+                    if (!buckets[key]) {
+                        buckets[key] = {
+                            day,
+                            bucketIndex,
+                            startHour: bucketIndex * 3,
+                            endHour: (bucketIndex * 3) + 3,
+                            records: [],
+                            timestamp: new Date(`${day}T${String(bucketIndex * 3).padStart(2, '0')}:00:00`).getTime()
+                        };
+                    }
+                    
+                    buckets[key].records.push(record);
+                });
+                
+                // Calcola le medie per ogni bucket
+                const result = {
+                    systolic: [],
+                    diastolic: [],
+                    pulse: []
+                };
+                
+                Object.values(buckets).forEach(bucket => {
+                    if (bucket.records && bucket.records.length > 0) {
+                        // Calcola la media sistolica
+                        const avgSystolic = bucket.records.reduce((sum, r) => sum + r.systolic, 0) / bucket.records.length;
+                        result.systolic.push({
+                            x: parseInt(bucket.timestamp),
+                            y: Math.round(avgSystolic)
+                        });
+                        
+                        // Calcola la media diastolica
+                        const avgDiastolic = bucket.records.reduce((sum, r) => sum + r.diastolic, 0) / bucket.records.length;
+                        result.diastolic.push({
+                            x: parseInt(bucket.timestamp),
+                            y: Math.round(avgDiastolic)
+                        });
+                        
+                        // Calcola la media delle pulsazioni (solo per record con pulsazioni)
+                        const pulseRecords = bucket.records.filter(r => r.pulse !== null && r.pulse !== undefined);
+                        if (pulseRecords.length > 0) {
+                            const avgPulse = pulseRecords.reduce((sum, r) => sum + r.pulse, 0) / pulseRecords.length;
+                            result.pulse.push({
+                                x: parseInt(bucket.timestamp),
+                                y: Math.round(avgPulse)
+                            });
+                        }
+                    }
+                });
+                
+                return result;
+            }
+            
+            // Funzione per aggregare i dati per giorno
+            function aggregateByDay(records) {
+                // Crea bucket per ogni giorno
+                const buckets = {};
+                
+                // Popola i buckets con i record
+                records.forEach(record => {
+                    const date = new Date(parseInt(record.timestamp));
+                    const day = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                    
+                    if (!buckets[day]) {
+                        buckets[day] = {
+                            day,
+                            records: [],
+                            timestamp: new Date(`${day}T12:00:00`).getTime() // Mezzogiorno come timestamp rappresentativo
+                        };
+                    }
+                    
+                    buckets[day].records.push(record);
+                });
+                
+                // Calcola le medie per ogni giorno
+                const result = {
+                    systolic: [],
+                    diastolic: [],
+                    pulse: []
+                };
+                
+                Object.values(buckets).forEach(bucket => {
+                    if (bucket.records && bucket.records.length > 0) {
+                        // Calcola la media sistolica
+                        const avgSystolic = bucket.records.reduce((sum, r) => sum + r.systolic, 0) / bucket.records.length;
+                        result.systolic.push({
+                            x: parseInt(bucket.timestamp),
+                            y: Math.round(avgSystolic)
+                        });
+                        
+                        // Calcola la media diastolica
+                        const avgDiastolic = bucket.records.reduce((sum, r) => sum + r.diastolic, 0) / bucket.records.length;
+                        result.diastolic.push({
+                            x: parseInt(bucket.timestamp),
+                            y: Math.round(avgDiastolic)
+                        });
+                        
+                        // Calcola la media delle pulsazioni (solo per record con pulsazioni)
+                        const pulseRecords = bucket.records.filter(r => r.pulse !== null && r.pulse !== undefined);
+                        if (pulseRecords.length > 0) {
+                            const avgPulse = pulseRecords.reduce((sum, r) => sum + r.pulse, 0) / pulseRecords.length;
+                            result.pulse.push({
+                                x: parseInt(bucket.timestamp),
+                                y: Math.round(avgPulse)
+                            });
+                        }
+                    }
+                });
+                
+                return result;
+            }
             
             // Funzione per aggiornare la tabella dei record
             function updateTable() {

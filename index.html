@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoraggio Pressione Sanguigna</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/it.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-section, .chart-section, .records-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .input-row > div {
+            flex: 1;
+            min-width: 200px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .date-range {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .date-range > div {
+            flex: 1;
+            min-width: 200px;
+        }
+        @media (max-width: 768px) {
+            .input-row, .date-range {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .input-row > div, .date-range > div {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Monitoraggio Pressione Sanguigna</h1>
+        
+        <div class="form-section">
+            <h2>Aggiungi Misurazione</h2>
+            <div class="input-row">
+                <div class="input-group">
+                    <label for="systolic">Pressione Sistolica (mmHg)</label>
+                    <input type="number" id="systolic" min="70" max="250" required>
+                </div>
+                <div class="input-group">
+                    <label for="diastolic">Pressione Diastolica (mmHg)</label>
+                    <input type="number" id="diastolic" min="40" max="150" required>
+                </div>
+                <div class="input-group">
+                    <label for="pulse">Pulsazioni (bpm)</label>
+                    <input type="number" id="pulse" min="30" max="220">
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="notes">Note</label>
+                <input type="text" id="notes" placeholder="Note opzionali">
+            </div>
+            <button id="saveBtn">Salva Misurazione</button>
+        </div>
+        
+        <div class="chart-section">
+            <h2>Grafico Pressione Media</h2>
+            <div class="date-range">
+                <div class="input-group">
+                    <label for="startDate">Data Iniziale</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="input-group">
+                    <label for="endDate">Data Finale</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="input-group">
+                    <label>&nbsp;</label>
+                    <button id="filterBtn">Aggiorna Grafico</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="bpChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="records-section">
+            <h2>Storico Misurazioni</h2>
+            <div class="input-row">
+                <div>
+                    <button id="exportBtn" class="btn-secondary">Esporta Dati (CSV)</button>
+                </div>
+                <div>
+                    <button id="clearBtn" class="btn-danger">Cancella Tutti i Dati</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="recordsTable">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Ora</th>
+                            <th>Sistolica</th>
+                            <th>Diastolica</th>
+                            <th>Pulsazioni</th>
+                            <th>Note</th>
+                            <th>Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inizializzazione
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementi DOM
+            const systolicInput = document.getElementById('systolic');
+            const diastolicInput = document.getElementById('diastolic');
+            const pulseInput = document.getElementById('pulse');
+            const notesInput = document.getElementById('notes');
+            const saveBtn = document.getElementById('saveBtn');
+            const filterBtn = document.getElementById('filterBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const recordsBody = document.getElementById('recordsBody');
+            
+            // Imposta le date di default
+            const today = new Date();
+            const oneMonthAgo = new Date();
+            oneMonthAgo.setMonth(today.getMonth() - 1);
+            
+            startDateInput.valueAsDate = oneMonthAgo;
+            endDateInput.valueAsDate = today;
+            
+            // Carica e visualizza i dati
+            let records = loadRecords();
+            updateTable();
+            updateChart();
+            
+            // Event listeners
+            saveBtn.addEventListener('click', saveRecord);
+            filterBtn.addEventListener('click', updateChart);
+            exportBtn.addEventListener('click', exportToCsv);
+            clearBtn.addEventListener('click', clearAllData);
+            
+            // Funzione per salvare una nuova misurazione
+            function saveRecord() {
+                const systolic = parseInt(systolicInput.value);
+                const diastolic = parseInt(diastolicInput.value);
+                const pulse = pulseInput.value ? parseInt(pulseInput.value) : null;
+                const notes = notesInput.value.trim();
+                
+                // Validazione
+                if (!systolic || !diastolic) {
+                    alert('Inserisci i valori di pressione sistolica e diastolica.');
+                    return;
+                }
+                
+                if (systolic < diastolic) {
+                    alert('La pressione sistolica deve essere maggiore della diastolica.');
+                    return;
+                }
+                
+                // Crea record con timestamp attuale
+                const now = new Date();
+                const record = {
+                    id: Date.now(), // ID unico basato sul timestamp
+                    date: now.toISOString().split('T')[0],
+                    time: now.toTimeString().split(' ')[0],
+                    timestamp: now.getTime(),
+                    systolic: systolic,
+                    diastolic: diastolic,
+                    pulse: pulse,
+                    notes: notes
+                };
+                
+                // Aggiungi il record e aggiorna visualizzazioni
+                records.push(record);
+                saveRecords();
+                updateTable();
+                updateChart();
+                
+                // Reset form
+                systolicInput.value = '';
+                diastolicInput.value = '';
+                pulseInput.value = '';
+                notesInput.value = '';
+                systolicInput.focus();
+            }
+            
+            // Funzione per aggiornare il grafico in base alle date selezionate
+            function updateChart() {
+                const startDate = new Date(startDateInput.value + 'T00:00:00');
+                const endDate = new Date(endDateInput.value + 'T23:59:59');
+                
+                // Filtra i record nel range di date
+                const filteredRecords = records.filter(record => {
+                    const recordDate = new Date(record.timestamp);
+                    return recordDate >= startDate && recordDate <= endDate;
+                });
+                
+                // Raggruppa i record per periodi della giornata e per data
+                const groupedData = groupRecordsByDayAndPeriod(filteredRecords);
+                
+                // Prepara i dati per il grafico
+                const labels = [...new Set(Object.keys(groupedData).sort())];
+                
+                const datasets = [
+                    {
+                        label: 'Sistolica - Mattina (6-12)',
+                        data: labels.map(date => groupedData[date]?.morning?.avgSystolic || null),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        tension: 0.1,
+                        fill: false
+                    },
+                    {
+                        label: 'Sistolica - Pomeriggio (12-18)',
+                        data: labels.map(date => groupedData[date]?.afternoon?.avgSystolic || null),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        tension: 0.1,
+                        fill: false
+                    },
+                    {
+                        label: 'Sistolica - Sera (18-24)',
+                        data: labels.map(date => groupedData[date]?.evening?.avgSystolic || null),
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        tension: 0.1,
+                        fill: false
+                    },
+                    {
+                        label: 'Diastolica - Mattina (6-12)',
+                        data: labels.map(date => groupedData[date]?.morning?.avgDiastolic || null),
+                        borderColor: 'rgba(255, 99, 132, 0.5)',
+                        tension: 0.1,
+                        fill: false,
+                        borderDash: [5, 5]
+                    },
+                    {
+                        label: 'Diastolica - Pomeriggio (12-18)',
+                        data: labels.map(date => groupedData[date]?.afternoon?.avgDiastolic || null),
+                        borderColor: 'rgba(54, 162, 235, 0.5)',
+                        tension: 0.1,
+                        fill: false,
+                        borderDash: [5, 5]
+                    },
+                    {
+                        label: 'Diastolica - Sera (18-24)',
+                        data: labels.map(date => groupedData[date]?.evening?.avgDiastolic || null),
+                        borderColor: 'rgba(153, 102, 255, 0.5)',
+                        tension: 0.1,
+                        fill: false,
+                        borderDash: [5, 5]
+                    }
+                ];
+                
+                // Crea o aggiorna il grafico
+                const ctx = document.getElementById('bpChart').getContext('2d');
+                if (window.bpChartInstance) {
+                    window.bpChartInstance.destroy();
+                }
+                
+                window.bpChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels.map(date => moment(date).format('DD/MM/YYYY')),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                min: 40,
+                                title: {
+                                    display: true,
+                                    text: 'Pressione (mmHg)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Data'
+                                }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Andamento Pressione Sanguigna',
+                                font: {
+                                    size: 16
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(tooltipItems) {
+                                        return moment(labels[tooltipItems[0].dataIndex]).format('DD MMMM YYYY');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Funzione per raggruppare i record per giorno e periodo
+            function groupRecordsByDayAndPeriod(records) {
+                const grouped = {};
+                
+                records.forEach(record => {
+                    const date = record.date;
+                    const hour = parseInt(record.time.split(':')[0]);
+                    
+                    // Determina il periodo del giorno
+                    let period;
+                    if (hour >= 6 && hour < 12) period = 'morning';
+                    else if (hour >= 12 && hour < 18) period = 'afternoon';
+                    else if (hour >= 18 && hour < 24) period = 'evening';
+                    else return; // Ignora le misurazioni notturne (0-6)
+                    
+                    // Crea struttura dati se necessario
+                    if (!grouped[date]) grouped[date] = {};
+                    if (!grouped[date][period]) {
+                        grouped[date][period] = {
+                            systolicSum: 0,
+                            diastolicSum: 0,
+                            count: 0,
+                            avgSystolic: 0,
+                            avgDiastolic: 0
+                        };
+                    }
+                    
+                    // Aggiorna i totali
+                    grouped[date][period].systolicSum += record.systolic;
+                    grouped[date][period].diastolicSum += record.diastolic;
+                    grouped[date][period].count++;
+                    
+                    // Calcola le medie
+                    grouped[date][period].avgSystolic = Math.round(
+                        grouped[date][period].systolicSum / grouped[date][period].count
+                    );
+                    grouped[date][period].avgDiastolic = Math.round(
+                        grouped[date][period].diastolicSum / grouped[date][period].count
+                    );
+                });
+                
+                return grouped;
+            }
+            
+            // Funzione per aggiornare la tabella dei record
+            function updateTable() {
+                recordsBody.innerHTML = '';
+                
+                // Ordina i record dal più recente al più vecchio
+                const sortedRecords = [...records].sort((a, b) => b.timestamp - a.timestamp);
+                
+                sortedRecords.forEach(record => {
+                    const row = document.createElement('tr');
+                    
+                    const formattedDate = moment(record.date).format('DD/MM/YYYY');
+                    const formattedTime = record.time.substring(0, 5);
+                    
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>${formattedTime}</td>
+                        <td>${record.systolic}</td>
+                        <td>${record.diastolic}</td>
+                        <td>${record.pulse || '-'}</td>
+                        <td>${record.notes || '-'}</td>
+                        <td><button class="delete-btn" data-id="${record.id}">Elimina</button></td>
+                    `;
+                    
+                    recordsBody.appendChild(row);
+                });
+                
+                // Aggiungi event listener per i pulsanti elimina
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-id'));
+                        deleteRecord(id);
+                    });
+                });
+            }
+            
+            // Funzione per eliminare un record
+            function deleteRecord(id) {
+                if (confirm('Sei sicuro di voler eliminare questa misurazione?')) {
+                    records = records.filter(record => record.id !== id);
+                    saveRecords();
+                    updateTable();
+                    updateChart();
+                }
+            }
+            
+            // Funzione per esportare i dati in CSV
+            function exportToCsv() {
+                if (records.length === 0) {
+                    alert('Non ci sono dati da esportare.');
+                    return;
+                }
+                
+                // Preparazione header CSV
+                const headers = ['Data', 'Ora', 'Sistolica', 'Diastolica', 'Pulsazioni', 'Note'];
+                
+                // Preparazione righe CSV
+                const sortedRecords = [...records].sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+                const rows = sortedRecords.map(record => [
+                    record.date,
+                    record.time,
+                    record.systolic,
+                    record.diastolic,
+                    record.pulse || '',
+                    `"${record.notes || ''}"`
+                ]);
+                
+                // Costruzione CSV
+                let csvContent = headers.join(',') + '\n';
+                rows.forEach(row => {
+                    csvContent += row.join(',') + '\n';
+                });
+                
+                // Download del file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                
+                const fileName = `pressione_sanguigna_${new Date().toISOString().slice(0, 10)}.csv`;
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', fileName);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // Funzione per cancellare tutti i dati
+            function clearAllData() {
+                if (confirm('Sei sicuro di voler eliminare tutti i dati? Questa operazione non può essere annullata.')) {
+                    records = [];
+                    saveRecords();
+                    updateTable();
+                    updateChart();
+                }
+            }
+            
+            // Funzioni per la gestione dello storage locale
+            function loadRecords() {
+                const data = localStorage.getItem('bloodPressureRecords');
+                return data ? JSON.parse(data) : [];
+            }
+            
+            function saveRecords() {
+                localStorage.setItem('bloodPressureRecords', JSON.stringify(records));
+            }
+        });
+    </script>
+</body>
+</html>

@@ -288,12 +288,12 @@
             const recordsBody = document.getElementById('recordsBody');
             
             // Imposta le date di default
-            const today = new Date();
-            const oneMonthAgo = new Date();
-            oneMonthAgo.setMonth(today.getMonth() - 1);
-            
-            startDateInput.valueAsDate = oneMonthAgo;
-            endDateInput.valueAsDate = today;
+const today = new Date();
+const yesterday = new Date();
+yesterday.setDate(today.getDate() - 1);
+
+startDateInput.valueAsDate = yesterday;
+endDateInput.valueAsDate = today;
             
             // Preimposta data e ora attuali nei campi di input
             customDateInput.valueAsDate = today;

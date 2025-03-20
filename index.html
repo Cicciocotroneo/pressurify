@@ -253,6 +253,11 @@
             startDateInput.valueAsDate = oneMonthAgo;
             endDateInput.valueAsDate = today;
             
+            // Preimposta data e ora attuali nei campi di input
+            customDateInput.valueAsDate = today;
+            customTimeInput.value = today.getHours().toString().padStart(2, '0') + ':' + 
+                                  today.getMinutes().toString().padStart(2, '0');
+            
             // Carica e visualizza i dati
             let records = loadRecords();
             updateTable();
@@ -284,8 +289,6 @@
                     alert('La pressione sistolica deve essere maggiore della diastolica.');
                     return;
                 }
-                
-                // Determina la data e l'ora per la misurazione
                 let measurementDate = new Date();
                 
                 // Se l'utente ha inserito una data personalizzata, usala
@@ -335,144 +338,152 @@
             
             // Funzione per aggiornare il grafico in base alle date selezionate
             function updateChart() {
-                const startDate = new Date(startDateInput.value + 'T00:00:00');
-                const endDate = new Date(endDateInput.value + 'T23:59:59');
-                
-                // Filtra i record nel range di date
-                const filteredRecords = records.filter(record => {
-                    const recordDate = new Date(record.timestamp);
-                    return recordDate >= startDate && recordDate <= endDate;
-                });
-                
-                // Ordina i record per timestamp
-                const sortedRecords = [...filteredRecords].sort((a, b) => a.timestamp - b.timestamp);
-                
-                // Prepara i dati per il grafico in formato timestamp
-                const chartData = {
-                    times: sortedRecords.map(record => record.timestamp),
-                    systolic: sortedRecords.map(record => record.systolic),
-                    diastolic: sortedRecords.map(record => record.diastolic),
-                    pulse: sortedRecords.map(record => record.pulse || null)
-                };
-                
-                // Crea i dataset per il grafico
-                const datasets = [
-                    {
-                        label: 'Sistolica (mmHg)',
-                        data: sortedRecords.map(record => ({
-                            x: record.timestamp,
-                            y: record.systolic
-                        })),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Diastolica (mmHg)',
-                        data: sortedRecords.map(record => ({
-                            x: record.timestamp,
-                            y: record.diastolic
-                        })),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Pulsazioni (bpm)',
-                        data: sortedRecords.map(record => ({
+                try {
+                    const startDate = new Date(startDateInput.value + 'T00:00:00');
+                    const endDate = new Date(endDateInput.value + 'T23:59:59');
+                    
+                    // Filtra i record nel range di date
+                    const filteredRecords = records.filter(record => {
+                        const recordDate = new Date(record.timestamp);
+                        return recordDate >= startDate && recordDate <= endDate;
+                    });
+                    
+                    // Ordina i record per timestamp
+                    const sortedRecords = [...filteredRecords].sort((a, b) => a.timestamp - b.timestamp);
+                    
+                    console.log("Record filtrati per il grafico:", sortedRecords.length);
+                    
+                    // Crea i dataset per il grafico
+                    const datasets = [
+                        {
+                            label: 'Sistolica (mmHg)',
+                            data: sortedRecords.map(record => ({
+                                x: record.timestamp,
+                                y: record.systolic
+                            })),
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Diastolica (mmHg)',
+                            data: sortedRecords.map(record => ({
+                                x: record.timestamp,
+                                y: record.diastolic
+                            })),
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6
+                        }
+                    ];
+                    
+                    // Aggiungi il dataset per le pulsazioni solo se ci sono dati
+                    const pulseData = sortedRecords
+                        .filter(record => record.pulse !== null && record.pulse !== undefined)
+                        .map(record => ({
                             x: record.timestamp,
                             y: record.pulse
-                        })).filter(item => item.y !== null),  // Filtra i valori null
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
-                        yAxisID: 'y1'  // Asse Y secondario per i battiti
+                        }));
+                    
+                    if (pulseData.length > 0) {
+                        datasets.push({
+                            label: 'Pulsazioni (bpm)',
+                            data: pulseData,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            yAxisID: 'y1'  // Asse Y secondario per i battiti
+                        });
                     }
-                ];
                 
-                // Crea o aggiorna il grafico
-                const ctx = document.getElementById('bpChart').getContext('2d');
-                if (window.bpChartInstance) {
-                    window.bpChartInstance.destroy();
-                }
-                
-                window.bpChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        datasets: datasets
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    unit: 'hour',
-                                    displayFormats: {
-                                        hour: 'DD/MM HH:mm'
+                    // Crea o aggiorna il grafico
+                    const ctx = document.getElementById('bpChart').getContext('2d');
+                    if (window.bpChartInstance) {
+                        window.bpChartInstance.destroy();
+                    }
+                    
+                    window.bpChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            parsing: false,
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: {
+                                        unit: 'hour',
+                                        displayFormats: {
+                                            hour: 'DD/MM HH:mm'
+                                        }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Data e ora di misurazione'
                                     }
                                 },
-                                title: {
-                                    display: true,
-                                    text: 'Data e ora di misurazione'
-                                }
-                            },
-                            y: {
-                                min: 40,
-                                max: 200,
-                                title: {
-                                    display: true,
-                                    text: 'Pressione (mmHg)'
-                                }
-                            },
-                            y1: {
-                                position: 'right',
-                                min: 30,
-                                max: 180,
-                                title: {
-                                    display: true,
-                                    text: 'Pulsazioni (bpm)'
+                                y: {
+                                    min: 40,
+                                    max: 200,
+                                    title: {
+                                        display: true,
+                                        text: 'Pressione (mmHg)'
+                                    }
                                 },
-                                grid: {
-                                    drawOnChartArea: false
-                                }
-                            }
-                        },
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Andamento Pressione Sanguigna e Battito',
-                                font: {
-                                    size: 16
-                                }
-                            },
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: {
-                                    boxWidth: 12
+                                y1: {
+                                    position: 'right',
+                                    min: 30,
+                                    max: 180,
+                                    title: {
+                                        display: true,
+                                        text: 'Pulsazioni (bpm)'
+                                    },
+                                    grid: {
+                                        drawOnChartArea: false
+                                    }
                                 }
                             },
-                            tooltip: {
-                                callbacks: {
-                                    title: function(tooltipItems) {
-                                        return moment(tooltipItems[0].raw.x).format('DD MMM YYYY, HH:mm');
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Andamento Pressione Sanguigna e Battito',
+                                    font: {
+                                        size: 16
+                                    }
+                                },
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        boxWidth: 12
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        title: function(tooltipItems) {
+                                            return moment(tooltipItems[0].raw.x).format('DD MMM YYYY, HH:mm');
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                });
+                    });
+                } catch (error) {
+                    console.error("Errore nell'aggiornamento del grafico:", error);
+                    alert("Si è verificato un errore nell'aggiornamento del grafico: " + error.message);
+                }
             }
             
             // Questa funzione non è più necessaria con il nuovo approccio del grafico

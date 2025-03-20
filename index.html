@@ -185,9 +185,16 @@
                     <button id="exportBtn" class="btn-secondary">Esporta Dati (CSV)</button>
                 </div>
                 <div>
+                    <button id="exportDataBtn" class="btn-secondary">Esporta Database</button>
+                </div>
+                <div>
+                    <button id="importDataBtn" class="btn-secondary">Importa Database</button>
+                </div>
+                <div>
                     <button id="clearBtn" class="btn-danger">Cancella Tutti i Dati</button>
                 </div>
             </div>
+            <input type="file" id="importFile" accept=".json" style="display: none;">
             <div class="table-container">
                 <table id="recordsTable">
                     <thead>
@@ -218,6 +225,9 @@
             const saveBtn = document.getElementById('saveBtn');
             const filterBtn = document.getElementById('filterBtn');
             const exportBtn = document.getElementById('exportBtn');
+            const exportDataBtn = document.getElementById('exportDataBtn');
+            const importDataBtn = document.getElementById('importDataBtn');
+            const importFile = document.getElementById('importFile');
             const clearBtn = document.getElementById('clearBtn');
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
@@ -240,6 +250,9 @@
             saveBtn.addEventListener('click', saveRecord);
             filterBtn.addEventListener('click', updateChart);
             exportBtn.addEventListener('click', exportToCsv);
+            exportDataBtn.addEventListener('click', exportDatabase);
+            importDataBtn.addEventListener('click', () => importFile.click());
+            importFile.addEventListener('change', importDatabase);
             clearBtn.addEventListener('click', clearAllData);
             
             // Funzione per salvare una nuova misurazione
@@ -304,53 +317,48 @@
                 // Prepara i dati per il grafico
                 const labels = [...new Set(Object.keys(groupedData).sort())];
                 
-                const datasets = [
-                    {
-                        label: 'Sistolica - Mattina (6-12)',
-                        data: labels.map(date => groupedData[date]?.morning?.avgSystolic || null),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        tension: 0.1,
-                        fill: false
-                    },
-                    {
-                        label: 'Sistolica - Pomeriggio (12-18)',
-                        data: labels.map(date => groupedData[date]?.afternoon?.avgSystolic || null),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        tension: 0.1,
-                        fill: false
-                    },
-                    {
-                        label: 'Sistolica - Sera (18-24)',
-                        data: labels.map(date => groupedData[date]?.evening?.avgSystolic || null),
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        tension: 0.1,
-                        fill: false
-                    },
-                    {
-                        label: 'Diastolica - Mattina (6-12)',
-                        data: labels.map(date => groupedData[date]?.morning?.avgDiastolic || null),
-                        borderColor: 'rgba(255, 99, 132, 0.5)',
-                        tension: 0.1,
-                        fill: false,
-                        borderDash: [5, 5]
-                    },
-                    {
-                        label: 'Diastolica - Pomeriggio (12-18)',
-                        data: labels.map(date => groupedData[date]?.afternoon?.avgDiastolic || null),
-                        borderColor: 'rgba(54, 162, 235, 0.5)',
-                        tension: 0.1,
-                        fill: false,
-                        borderDash: [5, 5]
-                    },
-                    {
-                        label: 'Diastolica - Sera (18-24)',
-                        data: labels.map(date => groupedData[date]?.evening?.avgDiastolic || null),
-                        borderColor: 'rgba(153, 102, 255, 0.5)',
-                        tension: 0.1,
-                        fill: false,
-                        borderDash: [5, 5]
-                    }
+                // Crea un array con tutte le ore da 0 a 23
+                const hours = Array.from({length: 24}, (_, i) => i);
+                
+                // Crea dataset dinamicamente per ogni ora
+                const datasets = [];
+                
+                // Colori per i vari intervalli orari (un colore per ogni 4 ore)
+                const colorGroups = [
+                    { solid: 'rgba(255, 99, 132, 1)', transparent: 'rgba(255, 99, 132, 0.5)' },   // 0-3
+                    { solid: 'rgba(54, 162, 235, 1)', transparent: 'rgba(54, 162, 235, 0.5)' },   // 4-7
+                    { solid: 'rgba(153, 102, 255, 1)', transparent: 'rgba(153, 102, 255, 0.5)' }, // 8-11
+                    { solid: 'rgba(255, 159, 64, 1)', transparent: 'rgba(255, 159, 64, 0.5)' },   // 12-15
+                    { solid: 'rgba(75, 192, 192, 1)', transparent: 'rgba(75, 192, 192, 0.5)' },   // 16-19
+                    { solid: 'rgba(201, 203, 207, 1)', transparent: 'rgba(201, 203, 207, 0.5)' }  // 20-23
                 ];
+                
+                hours.forEach(hour => {
+                    const hourKey = `hour_${hour}`;
+                    const colorIndex = Math.floor(hour / 4) % colorGroups.length;
+                    const colors = colorGroups[colorIndex];
+                    
+                    // Dataset per sistolica
+                    datasets.push({
+                        label: `Sistolica - ${hour}:00`,
+                        data: labels.map(date => groupedData[date]?.[hourKey]?.avgSystolic || null),
+                        borderColor: colors.solid,
+                        tension: 0.1,
+                        fill: false,
+                        hidden: true  // Nascosto di default, l'utente può attivarlo
+                    });
+                    
+                    // Dataset per diastolica
+                    datasets.push({
+                        label: `Diastolica - ${hour}:00`,
+                        data: labels.map(date => groupedData[date]?.[hourKey]?.avgDiastolic || null),
+                        borderColor: colors.transparent,
+                        tension: 0.1,
+                        fill: false,
+                        borderDash: [5, 5],
+                        hidden: true  // Nascosto di default, l'utente può attivarlo
+                    });
+                });
                 
                 // Crea o aggiorna il grafico
                 const ctx = document.getElementById('bpChart').getContext('2d');
@@ -385,9 +393,16 @@
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'Andamento Pressione Sanguigna',
+                                text: 'Andamento Pressione Sanguigna (Media Oraria)',
                                 font: {
                                     size: 16
+                                }
+                            },
+                            legend: {
+                                display: true,
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 12
                                 }
                             },
                             tooltip: {
@@ -402,25 +417,20 @@
                 });
             }
             
-            // Funzione per raggruppare i record per giorno e periodo
+            // Funzione per raggruppare i record per giorno e ora
             function groupRecordsByDayAndPeriod(records) {
                 const grouped = {};
                 
                 records.forEach(record => {
                     const date = record.date;
                     const hour = parseInt(record.time.split(':')[0]);
-                    
-                    // Determina il periodo del giorno
-                    let period;
-                    if (hour >= 6 && hour < 12) period = 'morning';
-                    else if (hour >= 12 && hour < 18) period = 'afternoon';
-                    else if (hour >= 18 && hour < 24) period = 'evening';
-                    else return; // Ignora le misurazioni notturne (0-6)
+                    const hourKey = `hour_${hour}`; // Chiave per l'intervallo orario
                     
                     // Crea struttura dati se necessario
                     if (!grouped[date]) grouped[date] = {};
-                    if (!grouped[date][period]) {
-                        grouped[date][period] = {
+                    if (!grouped[date][hourKey]) {
+                        grouped[date][hourKey] = {
+                            hour: hour,
                             systolicSum: 0,
                             diastolicSum: 0,
                             count: 0,
@@ -430,16 +440,16 @@
                     }
                     
                     // Aggiorna i totali
-                    grouped[date][period].systolicSum += record.systolic;
-                    grouped[date][period].diastolicSum += record.diastolic;
-                    grouped[date][period].count++;
+                    grouped[date][hourKey].systolicSum += record.systolic;
+                    grouped[date][hourKey].diastolicSum += record.diastolic;
+                    grouped[date][hourKey].count++;
                     
                     // Calcola le medie
-                    grouped[date][period].avgSystolic = Math.round(
-                        grouped[date][period].systolicSum / grouped[date][period].count
+                    grouped[date][hourKey].avgSystolic = Math.round(
+                        grouped[date][hourKey].systolicSum / grouped[date][hourKey].count
                     );
-                    grouped[date][period].avgDiastolic = Math.round(
-                        grouped[date][period].diastolicSum / grouped[date][period].count
+                    grouped[date][hourKey].avgDiastolic = Math.round(
+                        grouped[date][hourKey].diastolicSum / grouped[date][hourKey].count
                     );
                 });
                 
@@ -542,6 +552,86 @@
                     updateTable();
                     updateChart();
                 }
+            }
+            
+            // Funzione per esportare il database completo
+            function exportDatabase() {
+                if (records.length === 0) {
+                    alert('Non ci sono dati da esportare.');
+                    return;
+                }
+                
+                // Crea un oggetto con i dati
+                const data = {
+                    bloodPressureRecords: records,
+                    exportDate: new Date().toISOString(),
+                    version: '1.0'
+                };
+                
+                // Converti in JSON
+                const jsonString = JSON.stringify(data, null, 2);
+                
+                // Crea e scarica il file
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                
+                const fileName = `pressione_database_${new Date().toISOString().slice(0, 10)}.json`;
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', fileName);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // Funzione per importare il database
+            function importDatabase(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        // Verifica che il file contenga i dati corretti
+                        if (!data.bloodPressureRecords || !Array.isArray(data.bloodPressureRecords)) {
+                            throw new Error('Il file non contiene dati validi.');
+                        }
+                        
+                        // Chiedi conferma prima di sovrascrivere
+                        if (records.length > 0) {
+                            if (confirm('Vuoi sovrascrivere i dati esistenti o aggiungere i nuovi dati a quelli esistenti?\n\nOK = Sovrascrivi\nAnnulla = Aggiungi')) {
+                                // Sovrascrivi
+                                records = [...data.bloodPressureRecords];
+                            } else {
+                                // Aggiungi (evita duplicati)
+                                const existingIds = new Set(records.map(r => r.id));
+                                const newRecords = data.bloodPressureRecords.filter(r => !existingIds.has(r.id));
+                                records = [...records, ...newRecords];
+                            }
+                        } else {
+                            // Non ci sono dati esistenti, sovrascrivi direttamente
+                            records = [...data.bloodPressureRecords];
+                        }
+                        
+                        // Salva e aggiorna visualizzazioni
+                        saveRecords();
+                        updateTable();
+                        updateChart();
+                        
+                        alert(`Importazione completata. ${records.length} record caricati.`);
+                    } catch (error) {
+                        alert('Errore durante l\'importazione del file: ' + error.message);
+                    }
+                    
+                    // Reset input file
+                    importFile.value = '';
+                };
+                reader.readAsText(file);
             }
             
             // Funzioni per la gestione dello storage locale

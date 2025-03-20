@@ -150,6 +150,16 @@
                     <input type="number" id="pulse" min="30" max="220">
                 </div>
             </div>
+            <div class="input-row">
+                <div class="input-group">
+                    <label for="customDate">Data Misurazione (opzionale)</label>
+                    <input type="date" id="customDate">
+                </div>
+                <div class="input-group">
+                    <label for="customTime">Ora Misurazione (opzionale)</label>
+                    <input type="time" id="customTime">
+                </div>
+            </div>
             <div class="input-group">
                 <label for="notes">Note</label>
                 <input type="text" id="notes" placeholder="Note opzionali">
@@ -221,6 +231,8 @@
             const systolicInput = document.getElementById('systolic');
             const diastolicInput = document.getElementById('diastolic');
             const pulseInput = document.getElementById('pulse');
+            const customDateInput = document.getElementById('customDate');
+            const customTimeInput = document.getElementById('customTime');
             const notesInput = document.getElementById('notes');
             const saveBtn = document.getElementById('saveBtn');
             const filterBtn = document.getElementById('filterBtn');
@@ -273,13 +285,32 @@
                     return;
                 }
                 
-                // Crea record con timestamp attuale
-                const now = new Date();
+                // Determina la data e l'ora per la misurazione
+                let measurementDate = new Date();
+                
+                // Se l'utente ha inserito una data personalizzata, usala
+                if (customDateInput.value) {
+                    // Usa la data inserita dall'utente
+                    const dateParts = customDateInput.value.split('-');
+                    measurementDate.setFullYear(parseInt(dateParts[0]));
+                    measurementDate.setMonth(parseInt(dateParts[1]) - 1);
+                    measurementDate.setDate(parseInt(dateParts[2]));
+                }
+                
+                // Se l'utente ha inserito un'ora personalizzata, usala
+                if (customTimeInput.value) {
+                    // Usa l'ora inserita dall'utente
+                    const timeParts = customTimeInput.value.split(':');
+                    measurementDate.setHours(parseInt(timeParts[0]));
+                    measurementDate.setMinutes(parseInt(timeParts[1]));
+                    measurementDate.setSeconds(0);
+                }
+                
                 const record = {
-                    id: Date.now(), // ID unico basato sul timestamp
-                    date: now.toISOString().split('T')[0],
-                    time: now.toTimeString().split(' ')[0],
-                    timestamp: now.getTime(),
+                    id: Date.now(), // ID unico basato sul timestamp attuale
+                    date: measurementDate.toISOString().split('T')[0],
+                    time: measurementDate.toTimeString().split(' ')[0],
+                    timestamp: measurementDate.getTime(),
                     systolic: systolic,
                     diastolic: diastolic,
                     pulse: pulse,
@@ -296,6 +327,8 @@
                 systolicInput.value = '';
                 diastolicInput.value = '';
                 pulseInput.value = '';
+                customDateInput.value = '';
+                customTimeInput.value = '';
                 notesInput.value = '';
                 systolicInput.focus();
             }
@@ -311,54 +344,60 @@
                     return recordDate >= startDate && recordDate <= endDate;
                 });
                 
-                // Raggruppa i record per periodi della giornata e per data
-                const groupedData = groupRecordsByDayAndPeriod(filteredRecords);
+                // Ordina i record per timestamp
+                const sortedRecords = [...filteredRecords].sort((a, b) => a.timestamp - b.timestamp);
                 
-                // Prepara i dati per il grafico
-                const labels = [...new Set(Object.keys(groupedData).sort())];
+                // Prepara i dati per il grafico in formato timestamp
+                const chartData = {
+                    times: sortedRecords.map(record => record.timestamp),
+                    systolic: sortedRecords.map(record => record.systolic),
+                    diastolic: sortedRecords.map(record => record.diastolic),
+                    pulse: sortedRecords.map(record => record.pulse || null)
+                };
                 
-                // Crea un array con tutte le ore da 0 a 23
-                const hours = Array.from({length: 24}, (_, i) => i);
-                
-                // Crea dataset dinamicamente per ogni ora
-                const datasets = [];
-                
-                // Colori per i vari intervalli orari (un colore per ogni 4 ore)
-                const colorGroups = [
-                    { solid: 'rgba(255, 99, 132, 1)', transparent: 'rgba(255, 99, 132, 0.5)' },   // 0-3
-                    { solid: 'rgba(54, 162, 235, 1)', transparent: 'rgba(54, 162, 235, 0.5)' },   // 4-7
-                    { solid: 'rgba(153, 102, 255, 1)', transparent: 'rgba(153, 102, 255, 0.5)' }, // 8-11
-                    { solid: 'rgba(255, 159, 64, 1)', transparent: 'rgba(255, 159, 64, 0.5)' },   // 12-15
-                    { solid: 'rgba(75, 192, 192, 1)', transparent: 'rgba(75, 192, 192, 0.5)' },   // 16-19
-                    { solid: 'rgba(201, 203, 207, 1)', transparent: 'rgba(201, 203, 207, 0.5)' }  // 20-23
+                // Crea i dataset per il grafico
+                const datasets = [
+                    {
+                        label: 'Sistolica (mmHg)',
+                        data: sortedRecords.map(record => ({
+                            x: record.timestamp,
+                            y: record.systolic
+                        })),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Diastolica (mmHg)',
+                        data: sortedRecords.map(record => ({
+                            x: record.timestamp,
+                            y: record.diastolic
+                        })),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Pulsazioni (bpm)',
+                        data: sortedRecords.map(record => ({
+                            x: record.timestamp,
+                            y: record.pulse
+                        })).filter(item => item.y !== null),  // Filtra i valori null
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y1'  // Asse Y secondario per i battiti
+                    }
                 ];
-                
-                hours.forEach(hour => {
-                    const hourKey = `hour_${hour}`;
-                    const colorIndex = Math.floor(hour / 4) % colorGroups.length;
-                    const colors = colorGroups[colorIndex];
-                    
-                    // Dataset per sistolica
-                    datasets.push({
-                        label: `Sistolica - ${hour}:00`,
-                        data: labels.map(date => groupedData[date]?.[hourKey]?.avgSystolic || null),
-                        borderColor: colors.solid,
-                        tension: 0.1,
-                        fill: false,
-                        hidden: true  // Nascosto di default, l'utente può attivarlo
-                    });
-                    
-                    // Dataset per diastolica
-                    datasets.push({
-                        label: `Diastolica - ${hour}:00`,
-                        data: labels.map(date => groupedData[date]?.[hourKey]?.avgDiastolic || null),
-                        borderColor: colors.transparent,
-                        tension: 0.1,
-                        fill: false,
-                        borderDash: [5, 5],
-                        hidden: true  // Nascosto di default, l'utente può attivarlo
-                    });
-                });
                 
                 // Crea o aggiorna il grafico
                 const ctx = document.getElementById('bpChart').getContext('2d');
@@ -369,38 +408,57 @@
                 window.bpChartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: labels.map(date => moment(date).format('DD/MM/YYYY')),
                         datasets: datasets
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
                         scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'hour',
+                                    displayFormats: {
+                                        hour: 'DD/MM HH:mm'
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Data e ora di misurazione'
+                                }
+                            },
                             y: {
                                 min: 40,
+                                max: 200,
                                 title: {
                                     display: true,
                                     text: 'Pressione (mmHg)'
                                 }
                             },
-                            x: {
+                            y1: {
+                                position: 'right',
+                                min: 30,
+                                max: 180,
                                 title: {
                                     display: true,
-                                    text: 'Data'
+                                    text: 'Pulsazioni (bpm)'
+                                },
+                                grid: {
+                                    drawOnChartArea: false
                                 }
                             }
                         },
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'Andamento Pressione Sanguigna (Media Oraria)',
+                                text: 'Andamento Pressione Sanguigna e Battito',
                                 font: {
                                     size: 16
                                 }
                             },
                             legend: {
                                 display: true,
-                                position: 'right',
+                                position: 'top',
                                 labels: {
                                     boxWidth: 12
                                 }
@@ -408,7 +466,7 @@
                             tooltip: {
                                 callbacks: {
                                     title: function(tooltipItems) {
-                                        return moment(labels[tooltipItems[0].dataIndex]).format('DD MMMM YYYY');
+                                        return moment(tooltipItems[0].raw.x).format('DD MMM YYYY, HH:mm');
                                     }
                                 }
                             }
@@ -417,44 +475,8 @@
                 });
             }
             
-            // Funzione per raggruppare i record per giorno e ora
-            function groupRecordsByDayAndPeriod(records) {
-                const grouped = {};
-                
-                records.forEach(record => {
-                    const date = record.date;
-                    const hour = parseInt(record.time.split(':')[0]);
-                    const hourKey = `hour_${hour}`; // Chiave per l'intervallo orario
-                    
-                    // Crea struttura dati se necessario
-                    if (!grouped[date]) grouped[date] = {};
-                    if (!grouped[date][hourKey]) {
-                        grouped[date][hourKey] = {
-                            hour: hour,
-                            systolicSum: 0,
-                            diastolicSum: 0,
-                            count: 0,
-                            avgSystolic: 0,
-                            avgDiastolic: 0
-                        };
-                    }
-                    
-                    // Aggiorna i totali
-                    grouped[date][hourKey].systolicSum += record.systolic;
-                    grouped[date][hourKey].diastolicSum += record.diastolic;
-                    grouped[date][hourKey].count++;
-                    
-                    // Calcola le medie
-                    grouped[date][hourKey].avgSystolic = Math.round(
-                        grouped[date][hourKey].systolicSum / grouped[date][hourKey].count
-                    );
-                    grouped[date][hourKey].avgDiastolic = Math.round(
-                        grouped[date][hourKey].diastolicSum / grouped[date][hourKey].count
-                    );
-                });
-                
-                return grouped;
-            }
+            // Questa funzione non è più necessaria con il nuovo approccio del grafico
+            // che mostra i punti esatti invece delle medie orarie
             
             // Funzione per aggiornare la tabella dei record
             function updateTable() {

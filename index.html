@@ -290,9 +290,9 @@
             // Imposta le date di default
             const today = new Date();
             const oneMonthAgo = new Date();
-            oneWeekAgo.setWeek(today.getWeek() - 1);
+            oneMonthAgo.setMonth(today.getMonth() - 1);
             
-            startDateInput.valueAsDate = oneWeekAgo;
+            startDateInput.valueAsDate = oneMonthAgo;
             endDateInput.valueAsDate = today;
             
             // Preimposta data e ora attuali nei campi di input

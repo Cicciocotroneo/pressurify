@@ -406,7 +406,7 @@ endDateInput.valueAsDate = today;
                     let chartTitle;
                     
                     // Decidi quale tipo di aggregazione usare in base all'intervallo
-                    if (diffDays > 7) {
+                    if (diffDays > 15) {
                         // Per periodi più lunghi di una settimana, mostra medie giornaliere
                         chartData = aggregateByDay(sortedRecords);
                         chartTitle = 'Andamento Pressione Sanguigna (Media Giornaliera)';
